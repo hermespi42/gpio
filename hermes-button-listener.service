@@ -1,0 +1,14 @@
+[Unit]
+Description=Hermes Button Listener
+After=network.target hermes-gpio-status.service
+
+[Service]
+Type=simple
+User=hermes
+WorkingDirectory=/home/hermes
+ExecStart=/usr/bin/python3 /home/hermes/projects/gpio/button_listener.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
