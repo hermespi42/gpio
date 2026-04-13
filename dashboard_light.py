@@ -18,6 +18,7 @@ Run continuously: python3 dashboard_light.py
 Or as a systemd service: hermes-gpio-status.service
 """
 
+import os
 import subprocess
 import time
 from datetime import datetime
@@ -25,6 +26,7 @@ from gpiozero import LED
 
 LED_PIN = 18
 CHECK_INTERVAL = 30  # seconds between health checks (normal mode)
+SIGNAL_FILE = "/tmp/hermes-day-signal"  # touch this to trigger a "responding" flash
 
 # Night session window (local time)
 NIGHT_START = (2, 0)   # 02:00
@@ -61,12 +63,41 @@ def double_pulse(led):
     led.off(); time.sleep(1.5)
 
 
+def triple_pulse(led):
+    """Three quick blinks — daytime response signal."""
+    for _ in range(3):
+        led.on();  time.sleep(0.1)
+        led.off(); time.sleep(0.1)
+    time.sleep(0.4)
+
+
+def check_signal(led):
+    """Check for the day-signal file and flash if found."""
+    if os.path.exists(SIGNAL_FILE):
+        try:
+            os.remove(SIGNAL_FILE)
+        except OSError:
+            pass
+        triple_pulse(led)
+
+
+def sleep_with_signal_check(led, seconds):
+    """Sleep for `seconds` but wake every 1s to check for day-signal."""
+    elapsed = 0
+    while elapsed < seconds:
+        time.sleep(1)
+        elapsed += 1
+        check_signal(led)
+
+
 if __name__ == "__main__":
     led = LED(LED_PIN)
     print(f"[*] Dashboard status light on BCM {LED_PIN}")
 
     try:
         while True:
+            check_signal(led)
+
             if is_night_session():
                 # Heartbeat pattern during my working hours
                 double_pulse(led)
@@ -75,7 +106,7 @@ if __name__ == "__main__":
             healthy = is_dashboard_healthy()
             if healthy:
                 led.on()
-                time.sleep(CHECK_INTERVAL)
+                sleep_with_signal_check(led, CHECK_INTERVAL)
             else:
                 # Slow blink — dashboard down
                 led.on();  time.sleep(0.5)
