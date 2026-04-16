@@ -86,10 +86,10 @@ def resistance_to_celsius(r: float, beta: float = 3950, t_ref: float = 298.15, r
 def read_all(ads) -> dict:
     """Read all 4 channels and return raw + derived values."""
     channels = {
-        "A0_photo": AnalogIn(ads, ADS.P0),
-        "A1_therm": AnalogIn(ads, ADS.P1),
-        "A2_pot1":  AnalogIn(ads, ADS.P2),
-        "A3_pot2":  AnalogIn(ads, ADS.P3),
+        "A0_photo": AnalogIn(ads, 0),
+        "A1_therm": AnalogIn(ads, 1),
+        "A2_pot1":  AnalogIn(ads, 2),
+        "A3_pot2":  AnalogIn(ads, 3),
     }
 
     results = {}
