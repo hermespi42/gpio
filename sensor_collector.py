@@ -17,10 +17,12 @@ import argparse
 import json
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 OUTPUT_FILE = Path.home() / "sensor_data.json"
+HISTORY_FILE = Path.home() / "sensor_history.jsonl"
+HISTORY_RETAIN_DAYS = 30
 INTERVAL_DEFAULT = 30
 
 
@@ -28,6 +30,29 @@ def write_output(data: dict) -> None:
     tmp = OUTPUT_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     tmp.replace(OUTPUT_FILE)
+
+
+def append_history(entry: dict) -> None:
+    """Append one reading to the JSONL history file."""
+    with HISTORY_FILE.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def trim_history() -> None:
+    """Remove entries older than HISTORY_RETAIN_DAYS from the history file."""
+    if not HISTORY_FILE.exists():
+        return
+    cutoff = (datetime.now() - timedelta(days=HISTORY_RETAIN_DAYS)).isoformat(timespec="seconds")
+    lines = HISTORY_FILE.read_text(encoding="utf-8").splitlines()
+    kept = []
+    for line in lines:
+        try:
+            ts = json.loads(line).get("timestamp", "")
+            if ts >= cutoff:
+                kept.append(line)
+        except Exception:
+            pass  # discard malformed lines
+    HISTORY_FILE.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
 
 
 def run(interval: int) -> None:
@@ -45,6 +70,7 @@ def run(interval: int) -> None:
     from ads1115_sensors import read_all
 
     print(f"sensor_collector: starting, interval={interval}s, output={OUTPUT_FILE}", flush=True)
+    trim_history()
 
     while True:
         try:
@@ -57,12 +83,14 @@ def run(interval: int) -> None:
             while True:
                 try:
                     readings = read_all(ads)
-                    write_output({
+                    entry = {
                         "connected": True,
                         "timestamp": datetime.now().isoformat(timespec="seconds"),
                         "interval_s": interval,
                         "readings": readings,
-                    })
+                    }
+                    write_output(entry)
+                    append_history(entry)
                 except Exception as e:
                     write_output({
                         "connected": False,
